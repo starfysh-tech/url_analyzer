@@ -6,7 +6,7 @@ ini_set('log_errors', 1);
 ini_set('error_log', '/path/to/error.log');  // Adjust this path
 
 // Set secure headers
-header("Content-Security-Policy: default-src 'self'; img-src 'self' https://www.google.com data; font-src 'self' data:");
+header("Content-Security-Policy: default-src 'self'; img-src 'self' https://www.google.com data:; font-src 'self' data:");
 header("X-XSS-Protection: 1; mode=block");
 header("X-Frame-Options: SAMEORIGIN");
 header("X-Content-Type-Options: nosniff");
