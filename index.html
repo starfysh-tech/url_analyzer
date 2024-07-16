@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https://www.google.com; style-src 'self' 'unsafe-inline';">
+    <title>URL Analyzer</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔗</text></svg>">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        
+        h1,
+        h2 {
+            color: #2c3e50;
+        }
+        
+        h1 {
+            text-align: center;
+        }
+        
+        #urlForm,
+        #result,
+        #yamlOutput,
+        #screenshotArea {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        
+        #shortUrl {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #2980b9;
+        }
+        
+        .param {
+            margin-bottom: 10px;
+            padding: 10px;
+            background-color: #ecf0f1;
+            border-radius: 4px;
+        }
+        
+        .param-name {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        
+        .param-value {
+            color: #34495e;
+        }
+        
+        .param-explanation {
+            font-style: italic;
+            color: #7f8c8d;
+        }
+        
+        #yamlOutput {
+            white-space: pre-wrap;
+            font-family: monospace;
+            background-color: #f8f8f8;
+            padding: 15px;
+            border-radius: 4px;
+        }
+        
+        #favicon {
+            width: 16px;
+            height: 16px;
+            margin-right: 5px;
+            vertical-align: middle;
+        }
+        
+        #screenshotArea img {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>URL Analyzer</h1>
+    <div id="urlForm">
+        <input type="text" id="shortUrl" placeholder="Enter shortened URL">
+        <button onclick="analyzeUrl()">Analyze URL</button>
+    </div>
+    <div id="result"></div>
+    <div id="yamlOutput"></div>
+
+    <script>
+        function escapeHTML(str) {
+            return str.replace(/[&<>'"]/g,
+                tag => ({
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    "'": '&#39;',
+                    '"': '&quot;'
+                }[tag] || tag)
+            );
+        }
+
+        async function analyzeUrl() {
+            const shortUrl = document.getElementById('shortUrl').value;
+            const resultDiv = document.getElementById('result');
+            const yamlDiv = document.getElementById('yamlOutput');
+            resultDiv.innerHTML = 'Analyzing...';
+            yamlDiv.innerHTML = '';
+
+            try {
+                const response = await fetch('analyze_url.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({
+                        url: shortUrl
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                const escapedFullUrl = escapeHTML(data.full_url);
+                let resultHtml = `<h2>Full URL:</h2><p><img id="favicon" src="https://www.google.com/s2/favicons?domain=${new URL(escapedFullUrl).hostname}" alt="Favicon"> <a href="${escapedFullUrl}" target="_blank" rel="noopener noreferrer">${escapedFullUrl}</a></p><h2>Parameters:</h2>`;
+
+                for (const [key, value] of Object.entries(data.params)) {
+                    resultHtml += `
+                        <div class="param">
+                            <span class="param-name">${escapeHTML(key)}:</span>
+                            <span class="param-value">${escapeHTML(value.value)}</span><br>
+                            <span class="param-explanation">${escapeHTML(value.explanation)}</span>
+                        </div>`;
+                }
+
+                resultDiv.innerHTML = resultHtml;
+                yamlDiv.innerHTML = `<h2>YAML Representation:</h2><pre>${escapeHTML(data.yaml)}</pre>`;
+            } catch (error) {
+                resultDiv.innerHTML = `Error: ${escapeHTML(error.message)}`;
+            }
+        }
+    </script>
+</body>
+
+</html>
