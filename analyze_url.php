@@ -17,7 +17,9 @@ $dotenv = parse_ini_file('.env');
 $max_redirects = $dotenv['MAX_REDIRECTS'] ?? 5;
 $timeout = $dotenv['CURL_TIMEOUT'] ?? 10;
 
-function unshorten_url($url) {
+class URLException extends Exception {}
+
+function unshortenUrl($url) {
     global $max_redirects, $timeout;
     $ch = curl_init($url);
     curl_setopt_array($ch, [
@@ -27,16 +29,16 @@ function unshorten_url($url) {
         CURLOPT_TIMEOUT => $timeout,
         CURLOPT_USERAGENT => 'URLAnalyzer/1.0',
     ]);
-    $response = curl_exec($ch);
+    curl_exec($ch);
     if(curl_errno($ch)) {
-        throw new Exception(curl_error($ch));
+        throw new URLException('Failed to analyze the URL: '. curl_error($ch));
     }
     $long_url = curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
     curl_close($ch);
     return $long_url;
 }
 
-function analyze_params($url) {
+function analyzeParams($url) {
     $parsed_url = parse_url($url);
     if($parsed_url === false || !isset($parsed_url['query'])) {
         return [];
@@ -70,7 +72,7 @@ function analyze_params($url) {
     return $analyzed_params;
 }
 
-function generate_yaml($params) {
+function generateYaml($params) {
     $yaml = "parameters:\n";
     foreach ($params as $key => $value) {
         $yaml .= "  " . addslashes($key) . ": \"" . addslashes($value['value']) . "\"\n";
@@ -78,32 +80,33 @@ function generate_yaml($params) {
     return $yaml;
 }
 
-function handle_request() {
+function handleRequest() {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         http_response_code(405);
         return json_encode(['error' => 'Method Not Allowed']);
-    }
+        return;
 
     $input = json_decode(file_get_contents('php://input'), true);
     $short_url = $input['url'] ?? '';
 
     if (empty($short_url) || !filter_var($short_url, FILTER_VALIDATE_URL)) {
+    if (json_decode(file_get_contents('php://input'), true) === null) {
         http_response_code(400);
         return json_encode(['error' => 'Invalid URL provided']);
-    }
+        return json_encode(['error' => 'Invalid JSON provided']);
 
-    try {
-        $full_url = unshorten_url($short_url);
+        $full_url = unshortenUrl($short_url);
         $params = analyze_params($full_url);
         $yaml = generate_yaml($params);
-
-        return json_encode([
+        $params = analyzeParams($full_url);
+        $yaml = generateYaml($params)[
             'full_url' => $full_url,
             'params' => $params,
-            'yaml' => $yaml,
+            'yaml' => $yaml
         ]);
     } catch (Exception $e) {
         error_log("Error processing URL: " . $e->getMessage());
+        error_log("Error processing URL: " . print_r($e, true));
         http_response_code(500);
         return json_encode(['error' => 'An error occurred while processing the URL']);
     }
@@ -117,3 +120,4 @@ try {
     http_response_code(500);
     echo json_encode(['error' => 'An unexpected error occurred']);
 }
+
